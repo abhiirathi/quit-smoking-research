@@ -6,8 +6,6 @@ Run:
 """
 from __future__ import annotations
 
-import ast
-
 import pandas as pd
 import plotly.express as px
 import streamlit as st
@@ -38,15 +36,77 @@ def load():
 
 apps, reviews, themes, monetization, feature_requests = load()
 
-st.title("Quit-Smoking / Vaping App Landscape — India")
-st.caption("Scraped from Play Store + App Store. 1–2★ reviews only. Built to spot what existing apps get wrong.")
+# ---------- Column configs (wide text columns, clickable cells expand) ----------
+REVIEW_COLS = {
+    "content": st.column_config.TextColumn("review", width="large", help="Full review text — click the cell to expand in a modal."),
+    "full_text": st.column_config.TextColumn("full text", width="large"),
+    "request_snippet": st.column_config.TextColumn("request", width="large", help="The sentence in the review that looks like a feature request."),
+    "title": st.column_config.TextColumn("title", width="medium"),
+    "app_name": st.column_config.TextColumn("app", width="medium"),
+    "description": st.column_config.TextColumn("description", width="large"),
+    "iap_range": st.column_config.TextColumn("iap range", width="small"),
+    "prices_mentioned": st.column_config.TextColumn("prices mentioned", width="medium"),
+    "plan_keywords": st.column_config.TextColumn("plan keywords", width="medium"),
+    "url": st.column_config.LinkColumn("store link", width="small"),
+}
 
-# Sidebar filters
+
+def show_df(df: pd.DataFrame, *, height: int = 520, key: str | None = None) -> None:
+    """Render a dataframe with wide text columns + a companion 'Full review inspector'
+    so users can read any cell end-to-end without truncation."""
+    if df.empty:
+        st.info("No rows for the current filters.")
+        return
+    col_cfg = {c: cfg for c, cfg in REVIEW_COLS.items() if c in df.columns}
+    st.dataframe(
+        df,
+        column_config=col_cfg,
+        hide_index=True,
+        width="stretch",
+        height=height,
+    )
+
+    # Inspector — pick any row, read the full text wrapped in a container.
+    text_col = next((c for c in ("content", "full_text", "request_snippet", "description") if c in df.columns), None)
+    if text_col is None:
+        return
+    with st.expander(f"🔍 Inspect a single row (full text, no truncation)", expanded=False):
+        options = list(df.index)
+        labels = []
+        for i in options:
+            row = df.loc[i]
+            app = str(row.get("app_name", row.get("name", "")))[:40]
+            snippet = str(row.get(text_col, ""))[:60].replace("\n", " ")
+            rating = row.get("rating", "")
+            labels.append(f"#{i} — {app} — ★{rating} — {snippet}…")
+        pick = st.selectbox("Row", options, format_func=lambda i: labels[options.index(i)], key=f"pick_{key or text_col}")
+        row = df.loc[pick]
+        meta_cols = [c for c in ("app_name", "store", "rating", "date", "user") if c in df.columns]
+        cols = st.columns(len(meta_cols)) if meta_cols else []
+        for c, col in zip(meta_cols, cols):
+            col.metric(c, str(row[c])[:40])
+        st.markdown("**Full text**")
+        st.text_area(
+            label="review",
+            value=str(row.get(text_col, "")),
+            height=280,
+            label_visibility="collapsed",
+            key=f"ta_{key or text_col}_{pick}",
+        )
+
+
+st.title("Quit-Smoking / Vaping App Landscape — India")
+st.caption("Scraped from Play Store (India locale). 1–2★ reviews only. Built to spot what existing apps get wrong.")
+
+# ---------- Sidebar filters ----------
 with st.sidebar:
     st.header("Filters")
     stores = st.multiselect("Store", ["play", "appstore"], default=["play", "appstore"])
-    india_only = st.checkbox("India-signal reviews only", value=False,
-                             help="Reviews mentioning India, Indian cities, rupees, regional languages, bidi, paan, etc.")
+    india_only = st.checkbox(
+        "India-signal reviews only",
+        value=False,
+        help="Reviews mentioning India, Indian cities, rupees, regional languages, bidi/paan/gutkha, etc.",
+    )
     app_options = sorted(reviews["app_name"].dropna().unique().tolist()) if not reviews.empty else []
     selected_apps = st.multiselect("Apps", app_options, default=app_options)
 
@@ -61,7 +121,7 @@ def _filter(df: pd.DataFrame) -> pd.DataFrame:
         out = out[out["app_name"].isin(selected_apps)]
     if india_only and "india_signal" in out.columns:
         out = out[out["india_signal"] == True]  # noqa: E712
-    return out
+    return out.reset_index(drop=True)
 
 
 f_reviews = _filter(reviews)
@@ -97,12 +157,12 @@ with tabs[0]:
         )
         fig = px.bar(vol, x="bad_reviews", y="app_name", color="store", orientation="h")
         fig.update_layout(height=600, yaxis={"categoryorder": "total ascending"})
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
     st.subheader("Rating distribution across discovered apps")
     if not apps.empty:
         fig = px.histogram(apps, x="rating", color="store", nbins=20)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
 # ---------- Complaint themes ----------
 with tabs[1]:
@@ -115,7 +175,7 @@ with tabs[1]:
         )
         fig = px.bar(top, x="count", y="theme", orientation="h")
         fig.update_layout(height=600, yaxis={"categoryorder": "total ascending"})
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
         st.subheader("Themes per app (heatmap)")
         pivot = (
@@ -127,14 +187,15 @@ with tabs[1]:
         if not pivot.empty:
             fig = px.imshow(pivot, aspect="auto", color_continuous_scale="Reds")
             fig.update_layout(height=max(400, 22 * len(pivot)))
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
         st.subheader("Browse reviews by theme")
         theme_pick = st.selectbox("Theme", sorted(f_themes["theme"].unique()))
-        sub = f_themes[f_themes["theme"] == theme_pick][
-            ["app_name", "store", "rating", "date", "content"]
-        ].head(200)
-        st.dataframe(sub, use_container_width=True, height=500)
+        sub = f_themes[f_themes["theme"] == theme_pick].reset_index(drop=True)
+        show_df(
+            sub[[c for c in ["app_name", "store", "rating", "date", "content"] if c in sub.columns]],
+            key=f"themes_{theme_pick}",
+        )
 
 # ---------- Feature requests ----------
 with tabs[2]:
@@ -146,11 +207,11 @@ with tabs[2]:
         )
         fig = px.bar(per_app, x="requests", y="app_name", orientation="h")
         fig.update_layout(height=500, yaxis={"categoryorder": "total ascending"})
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
-        st.dataframe(
-            f_fr[["app_name", "store", "rating", "request_snippet", "india_signal", "date"]],
-            use_container_width=True,
+        show_df(
+            f_fr[[c for c in ["app_name", "store", "rating", "request_snippet", "full_text", "india_signal", "date"] if c in f_fr.columns]],
+            key="fr_table",
             height=600,
         )
     else:
@@ -163,13 +224,14 @@ with tabs[3]:
         mon = monetization.copy()
         if stores:
             mon = mon[mon["store"].isin(stores)]
+        mon = mon.reset_index(drop=True)
 
         c1, c2, c3 = st.columns(3)
         c1.metric("Free apps", int((mon["free"] == True).sum()))  # noqa: E712
         c2.metric("With in-app purchases", int((mon["in_app_purchases"] == True).sum()))  # noqa: E712
         c3.metric("Mention subscription in desc.", int((mon["mentions_subscription"] == True).sum()))  # noqa: E712
 
-        st.markdown("**Per-app monetization table**")
+        st.markdown("**Per-app monetization table** — click any cell to expand the full value.")
         show_cols = [
             "store", "name", "developer", "rating", "ratings_count",
             "free", "price", "contains_ads", "in_app_purchases", "iap_range",
@@ -177,7 +239,7 @@ with tabs[3]:
             "mentions_trial", "mentions_lifetime", "url",
         ]
         show_cols = [c for c in show_cols if c in mon.columns]
-        st.dataframe(mon[show_cols], use_container_width=True, height=600)
+        show_df(mon[show_cols], key="mon_table", height=620)
 
         st.markdown("**Plan keyword frequency across descriptions**")
         kw_series = mon["plan_keywords"].fillna("").str.split("; ").explode()
@@ -187,13 +249,13 @@ with tabs[3]:
             kc.columns = ["keyword", "count"]
             fig = px.bar(kc, x="count", y="keyword", orientation="h")
             fig.update_layout(height=400, yaxis={"categoryorder": "total ascending"})
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
 # ---------- India lens ----------
 with tabs[4]:
     st.subheader("India-signal reviews")
     st.caption("Reviews mentioning India-specific words (cities, rupees, regional languages, bidi/paan/gutkha, etc.).")
-    india = reviews[reviews.get("india_signal") == True] if not reviews.empty else pd.DataFrame()  # noqa: E712
+    india = reviews[reviews.get("india_signal") == True].reset_index(drop=True) if not reviews.empty else pd.DataFrame()  # noqa: E712
     if not india.empty:
         c1, c2 = st.columns(2)
         c1.metric("India-signal reviews", len(india))
@@ -209,11 +271,12 @@ with tabs[4]:
             fig = px.bar(top, x="count", y="theme", orientation="h",
                          title="Themes in India-signal reviews")
             fig.update_layout(height=500, yaxis={"categoryorder": "total ascending"})
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
-        st.dataframe(
-            india[["app_name", "store", "rating", "date", "content"]].head(500),
-            use_container_width=True, height=600,
+        show_df(
+            india[[c for c in ["app_name", "store", "rating", "date", "content"] if c in india.columns]],
+            key="india_table",
+            height=620,
         )
     else:
         st.info("No India-signal reviews yet. Run the pipeline first.")
@@ -226,9 +289,11 @@ with tabs[5]:
         data = f_reviews
         if search:
             data = data[data["content"].fillna("").str.contains(search, case=False)]
-        st.dataframe(
-            data[["app_name", "store", "rating", "date", "content"]],
-            use_container_width=True, height=700,
+        data = data.reset_index(drop=True)
+        show_df(
+            data[[c for c in ["app_name", "store", "rating", "date", "content"] if c in data.columns]],
+            key="raw_table",
+            height=720,
         )
         st.download_button(
             "Download filtered reviews as CSV",
