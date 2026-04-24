@@ -1,0 +1,4 @@
+.venv/
+__pycache__/
+*.pyc
+# data/ is committed so the deployed dashboard has something to render.
