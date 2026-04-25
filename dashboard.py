@@ -12,11 +12,16 @@ import streamlit as st
 
 from config import (
     APPS_CSV,
+    DATA_DIR,
     FEATURE_REQUESTS_CSV,
     MONETIZATION_CSV,
     REVIEWS_CSV,
     THEMES_CSV,
 )
+
+FEATURES_CSV = DATA_DIR / "features.csv"
+FEATURES_MATRIX_CSV = DATA_DIR / "features_matrix.csv"
+FEATURES_SUMMARY_CSV = DATA_DIR / "features_summary.csv"
 
 st.set_page_config(
     page_title="Quit-Smoking App Landscape — India",
@@ -31,10 +36,13 @@ def load():
     themes = pd.read_csv(THEMES_CSV) if THEMES_CSV.exists() else pd.DataFrame()
     mon = pd.read_csv(MONETIZATION_CSV) if MONETIZATION_CSV.exists() else pd.DataFrame()
     fr = pd.read_csv(FEATURE_REQUESTS_CSV) if FEATURE_REQUESTS_CSV.exists() else pd.DataFrame()
-    return apps, reviews, themes, mon, fr
+    feats = pd.read_csv(FEATURES_CSV) if FEATURES_CSV.exists() else pd.DataFrame()
+    feats_matrix = pd.read_csv(FEATURES_MATRIX_CSV) if FEATURES_MATRIX_CSV.exists() else pd.DataFrame()
+    feats_summary = pd.read_csv(FEATURES_SUMMARY_CSV) if FEATURES_SUMMARY_CSV.exists() else pd.DataFrame()
+    return apps, reviews, themes, mon, fr, feats, feats_matrix, feats_summary
 
 
-apps, reviews, themes, monetization, feature_requests = load()
+apps, reviews, themes, monetization, feature_requests, features, features_matrix, features_summary = load()
 
 # ---------- Column configs (wide text columns, clickable cells expand) ----------
 REVIEW_COLS = {
@@ -130,6 +138,7 @@ f_fr = _filter(feature_requests)
 
 tabs = st.tabs([
     "Overview",
+    "Features",
     "Complaint themes",
     "Feature requests",
     "Monetization",
@@ -164,8 +173,114 @@ with tabs[0]:
         fig = px.histogram(apps, x="rating", color="store", nbins=20)
         st.plotly_chart(fig, width="stretch")
 
-# ---------- Complaint themes ----------
+# ---------- Features (NEW) ----------
 with tabs[1]:
+    st.subheader("What features are competitor apps offering?")
+    st.caption(
+        "Detected from each app's Play Store description against a taxonomy of "
+        f"~{0 if features_summary.empty else features_summary['feature'].nunique()} canonical features. "
+        "Use this to spot table-stakes (everyone has it) vs. differentiation opportunities (almost no one has it)."
+    )
+
+    if features_summary.empty or features_matrix.empty:
+        st.info("Run `extract_features.py` to populate this tab.")
+    else:
+        n_apps = len(features_matrix)
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Apps analyzed", n_apps)
+        c2.metric("Distinct features tracked", features_summary["feature"].nunique())
+        c3.metric("Avg features per app", round(features_matrix["feature_count"].mean(), 1))
+        c4.metric("Categories", features_summary["category"].nunique())
+
+        # ---- Top features (table stakes) ----
+        st.markdown("#### Table-stakes — features ≥30% of apps offer")
+        st.caption("If we don't have these on day one, we'll feel incomplete.")
+        ts = features_summary[features_summary["pct_apps"] >= 30].sort_values("pct_apps", ascending=True)
+        if not ts.empty:
+            fig = px.bar(
+                ts, x="pct_apps", y="feature", color="category", orientation="h",
+                hover_data=["apps_offering"], text="pct_apps",
+            )
+            fig.update_traces(texttemplate="%{text:.0f}%", textposition="outside")
+            fig.update_layout(height=max(300, 28 * len(ts)), xaxis_title="% of apps offering")
+            st.plotly_chart(fig, width="stretch")
+
+        # ---- Differentiation opportunities ----
+        st.markdown("#### Differentiation opportunities — features ≤10% of apps offer")
+        st.caption("Cheap-to-build features that almost no competitor advertises. Strong wedge candidates.")
+        opp = features_summary[features_summary["pct_apps"] <= 10].sort_values("pct_apps", ascending=True)
+        if not opp.empty:
+            fig = px.bar(
+                opp, x="pct_apps", y="feature", color="category", orientation="h",
+                hover_data=["apps_offering"], text="pct_apps",
+            )
+            fig.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
+            fig.update_layout(height=max(300, 28 * len(opp)), xaxis_title="% of apps offering")
+            st.plotly_chart(fig, width="stretch")
+
+        # ---- Features by category ----
+        st.markdown("#### All features by category")
+        cat_pick = st.selectbox(
+            "Filter by category",
+            ["(all)"] + sorted(features_summary["category"].unique().tolist()),
+        )
+        s = features_summary if cat_pick == "(all)" else features_summary[features_summary["category"] == cat_pick]
+        s = s.sort_values("pct_apps", ascending=False)
+        st.dataframe(
+            s,
+            column_config={
+                "feature": st.column_config.TextColumn("feature", width="large"),
+                "category": st.column_config.TextColumn("category", width="medium"),
+                "apps_offering": st.column_config.NumberColumn("# apps"),
+                "pct_apps": st.column_config.ProgressColumn(
+                    "% of apps offering", format="%.1f%%", min_value=0, max_value=100,
+                ),
+            },
+            hide_index=True, width="stretch", height=500,
+        )
+
+        # ---- Per-app drill-down ----
+        st.markdown("#### Drill-down: which features does a specific app advertise?")
+        app_options = sorted(features_matrix["app_name"].dropna().unique().tolist())
+        app_pick = st.selectbox("App", app_options, key="feat_app_pick")
+        if app_pick:
+            evid = features[features["app_name"] == app_pick][
+                ["category", "feature", "matched_phrase", "evidence", "url"]
+            ].drop_duplicates(["category", "feature"]).reset_index(drop=True)
+            row = features_matrix[features_matrix["app_name"] == app_pick].iloc[0]
+            cA, cB, cC = st.columns(3)
+            cA.metric("Features advertised", int(row["feature_count"]))
+            cB.metric("Store rating", row.get("rating"))
+            cC.metric("Ratings count", int(row.get("ratings_count") or 0))
+            st.dataframe(
+                evid,
+                column_config={
+                    "feature": st.column_config.TextColumn("feature", width="medium"),
+                    "category": st.column_config.TextColumn("category", width="small"),
+                    "matched_phrase": st.column_config.TextColumn("matched phrase", width="small"),
+                    "evidence": st.column_config.TextColumn("evidence (description excerpt)", width="large"),
+                    "url": st.column_config.LinkColumn("store"),
+                },
+                hide_index=True, width="stretch", height=520,
+            )
+
+        # ---- App × feature heatmap ----
+        st.markdown("#### App × Feature heatmap")
+        st.caption("Green = the app advertises this feature. White = no evidence in description.")
+        feat_cols = [c for c in features_matrix.columns
+                     if c not in {"store", "app_name", "rating", "ratings_count", "feature_count"}]
+        if feat_cols:
+            heat = features_matrix.set_index("app_name")[feat_cols]
+            fig = px.imshow(
+                heat,
+                aspect="auto",
+                color_continuous_scale=[[0, "#ffffff"], [1, "#16a34a"]],
+            )
+            fig.update_layout(height=max(500, 18 * len(heat)), xaxis_tickangle=-45)
+            st.plotly_chart(fig, width="stretch")
+
+# ---------- Complaint themes ----------
+with tabs[2]:
     st.subheader("Top complaint themes (all filtered reviews)")
     if not f_themes.empty:
         top = (
@@ -198,7 +313,7 @@ with tabs[1]:
         )
 
 # ---------- Feature requests ----------
-with tabs[2]:
+with tabs[3]:
     st.subheader("Feature requests extracted from 1–2★ reviews")
     if not f_fr.empty:
         per_app = (
@@ -218,7 +333,7 @@ with tabs[2]:
         st.info("No feature requests matched the current filters.")
 
 # ---------- Monetization ----------
-with tabs[3]:
+with tabs[4]:
     st.subheader("Monetization across competitor apps")
     if not monetization.empty:
         mon = monetization.copy()
@@ -252,7 +367,7 @@ with tabs[3]:
             st.plotly_chart(fig, width="stretch")
 
 # ---------- India lens ----------
-with tabs[4]:
+with tabs[5]:
     st.subheader("India-signal reviews")
     st.caption("Reviews mentioning India-specific words (cities, rupees, regional languages, bidi/paan/gutkha, etc.).")
     india = reviews[reviews.get("india_signal") == True].reset_index(drop=True) if not reviews.empty else pd.DataFrame()  # noqa: E712
@@ -282,7 +397,7 @@ with tabs[4]:
         st.info("No India-signal reviews yet. Run the pipeline first.")
 
 # ---------- Raw reviews ----------
-with tabs[5]:
+with tabs[6]:
     st.subheader("Raw 1–2★ reviews")
     if not f_reviews.empty:
         search = st.text_input("Search within review text")

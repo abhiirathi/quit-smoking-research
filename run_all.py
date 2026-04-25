@@ -18,5 +18,6 @@ if __name__ == "__main__":
     run("scrape_apps.py")
     run("scrape_reviews.py")
     run("analyze_themes.py")
+    run("extract_features.py")
     print("\nDone. Launch dashboard with:")
     print("  streamlit run research/dashboard.py")
