@@ -139,6 +139,7 @@ f_fr = _filter(feature_requests)
 tabs = st.tabs([
     "Overview",
     "Features",
+    "Strategy",
     "Complaint themes",
     "Feature requests",
     "Monetization",
@@ -279,8 +280,174 @@ with tabs[1]:
             fig.update_layout(height=max(500, 18 * len(heat)), xaxis_tickangle=-45)
             st.plotly_chart(fig, width="stretch")
 
-# ---------- Complaint themes ----------
+# ---------- Strategy (NEW) ----------
 with tabs[2]:
+    st.header("🎯 Our Strategy — The Dopamine Wedge")
+    st.markdown(
+        "> **Every existing app fights nicotine. We fight dopamine.** "
+        "Our 87-app feature scan + user interviews independently confirmed: **0 of 87 apps target the dopamine reward system.** "
+        "That is our wedge."
+    )
+
+    st.markdown("### The thesis in one chart")
+    st.caption(
+        "Our planned features (highlighted) vs. what the market currently offers. Anything below 10% is a differentiation opportunity."
+    )
+
+    # White-space chart: our planned features highlighted against existing % adoption.
+    OUR_FEATURES = [
+        ("CRAVE button (variable-reward dopamine loop)", "—", 0.0, "core"),
+        ("Real-money skill tournaments (Focus Arena)", "—", 0.0, "premium"),
+        ("Cravings panic button", "Coping", 3.4, "core"),
+        ("Distraction games / mini-games", "Coping", 2.3, "core"),
+        ("Mood tracking", "Coping", 1.1, "core"),
+        ("Trigger interception (proactive)", "Coping", 32.2, "core"),
+        ("Voice-cloned AI coach", "—", 0.0, "premium"),
+        ("Daily Dopamine Stack (sun/cold/protein/walk)", "—", 0.0, "core"),
+        ("Branded supplement subscription", "—", 0.0, "premium"),
+        ("Skin-in-the-game commitment bet", "—", 0.0, "premium"),
+        ("Photo-aging time machine", "—", 0.0, "premium"),
+        ("Lifetime purchase option", "Monetization", 2.3, "core"),
+        ("Money-back guarantee", "Monetization", 2.3, "core"),
+        ("Anonymous community high-fives", "Social", 3.4, "core"),
+        ("Hindi / Indian language support", "UX", 4.6, "core"),
+        ("Offline support", "UX", 2.3, "core"),
+    ]
+    import pandas as _pd
+    plan_df = _pd.DataFrame(OUR_FEATURES, columns=["feature", "category", "competitor_pct", "tier"])
+    fig = px.bar(
+        plan_df.sort_values("competitor_pct"),
+        x="competitor_pct", y="feature", color="tier", orientation="h",
+        color_discrete_map={"core": "#16a34a", "premium": "#7c3aed"},
+        text="competitor_pct",
+        hover_data={"category": True, "competitor_pct": ":.1f"},
+    )
+    fig.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
+    fig.update_layout(
+        height=max(420, 32 * len(plan_df)),
+        xaxis_title="% of competitor apps offering this today",
+        yaxis_title="",
+        legend_title="our tier",
+    )
+    fig.add_vline(x=10, line_dash="dot", line_color="#dc2626",
+                  annotation_text="Differentiation cutoff (≤10%)", annotation_position="top")
+    st.plotly_chart(fig, width="stretch")
+
+    st.divider()
+
+    # ---- Three pillars ----
+    st.markdown("### Three product layers")
+    p1, p2, p3 = st.columns(3)
+    with p1:
+        st.markdown("#### ⚡ Layer 1 — Acute craving")
+        st.markdown(
+            "**The CRAVE button.** When craving hits, deliver a *real* dopamine hit in 30–60 sec via "
+            "variable reward — UPI cashback spins, scratch cards, breath-rhythm game, live high-fives, "
+            "audio rewards. The randomness is the point: same loop slot machines and Instagram use, "
+            "redirected to break the cigarette cycle."
+        )
+    with p2:
+        st.markdown("#### 🧬 Layer 2 — Baseline repair")
+        st.markdown(
+            "**Daily Dopamine Stack.** 5-item morning protocol (sun, cold, protein, walk, sleep) + "
+            "branded supplement subscription (Magnesium Glycinate, L-Theanine, L-Tyrosine). "
+            "Clinical, not gamified — focused on receptors regrowing over 30–90 days."
+        )
+    with p3:
+        st.markdown("#### ⏰ Layer 3 — Trigger interception")
+        st.markdown(
+            "**Pre-empt cravings.** User marks 3 trigger windows in onboarding (morning, work break, "
+            "post-meal, stress). App **proactively** intercepts those moments with the CRAVE flow — "
+            "alarm, Pomodoro pings, stress-detection nudges. We're in the moment, not waiting to be opened."
+        )
+
+    st.divider()
+
+    # ---- Premium features (revenue) ----
+    st.markdown("### 💰 Premium features — what people will pay for")
+    st.caption("Each rated 1–10 on dopamine value, willingness-to-pay (Indian market), and defensibility.")
+
+    PREMIUM = [
+        ("Focus Arena — skill-money tournaments", 9, 10, 8, "₹10–₹50/entry, 15–25% rake"),
+        ("The Stack — branded supplements", 6, 9, 7, "₹799/mo subscription"),
+        ("Voice-cloned AI coach (loved one's voice)", 10, 8, 9, "₹499 + ₹99/mo"),
+        ("Quit Pact — commitment bet (loss aversion)", 8, 8, 6, "10% rake on each pact"),
+        ("NRT-as-a-service — telehealth + gum delivery", 5, 9, 8, "₹1,499/mo"),
+        ("Crave Band — HRV wearable partnership", 7, 7, 10, "₹2,999 + ₹99/mo"),
+        ("Photo-aging time machine", 6, 6, 4, "₹199 / refresh"),
+        ("Cohort betting pool — 10-friend pact", 8, 7, 5, "10% rake on pot"),
+        ("Crave-line — ₹99 therapist hotline", 7, 6, 6, "₹49 take-rate per call"),
+        ("Insurance premium discount partnership", 4, 8, 9, "₹500–₹2,000 per converted policy"),
+    ]
+    prem_df = _pd.DataFrame(PREMIUM, columns=["feature", "dopamine", "willingness_to_pay", "moat", "model"])
+    prem_df["score"] = prem_df["dopamine"] + prem_df["willingness_to_pay"] + prem_df["moat"]
+    prem_df = prem_df.sort_values("score", ascending=False).reset_index(drop=True)
+
+    st.dataframe(
+        prem_df,
+        column_config={
+            "feature": st.column_config.TextColumn("feature", width="large"),
+            "dopamine": st.column_config.ProgressColumn("🧠 dopamine value", min_value=0, max_value=10, format="%d"),
+            "willingness_to_pay": st.column_config.ProgressColumn("💰 willingness to pay", min_value=0, max_value=10, format="%d"),
+            "moat": st.column_config.ProgressColumn("🛡️ moat", min_value=0, max_value=10, format="%d"),
+            "model": st.column_config.TextColumn("revenue model", width="medium"),
+            "score": st.column_config.NumberColumn("total", format="%d"),
+        },
+        hide_index=True, width="stretch", height=420,
+    )
+
+    st.markdown("**Top 3 to build first** (after the free CRAVE button is shipped):")
+    st.markdown(
+        "1. 🥇 **Focus Arena** — highest dopamine + WTP, fits Indian gaming culture (Dream11/MPL audience), defensible via the per-user game-response dataset\n"
+        "2. 🥈 **The Stack** — recurring revenue, ~70% margin, the only feature addressing *baseline dopamine repair*\n"
+        "3. 🥉 **Voice-cloned coach** — most emotionally sticky, off-the-shelf tech, no competitor has it"
+    )
+
+    st.divider()
+
+    # ---- Pricing ladder ----
+    st.markdown("### 🪜 Recommended pricing ladder")
+    LADDER = [
+        ("Free", "₹0", "CRAVE button (basic), Daily Dopamine Stack, 1 trigger", "Day 0–7"),
+        ("Pro Pack (one-time)", "₹999 lifetime", "Higher cashback, all triggers, all reward types, scratch cards", "Day 7–30"),
+        ("The Stack", "₹799/mo", "Branded supplements + adherence tracking", "Day 14+"),
+        ("Focus Arena", "₹10–50/entry", "Real-money skill tournaments", "Daily power users"),
+        ("Quit Pact", "₹500–₹5,000 stake", "Commitment bet escrow", "Day 14+"),
+        ("Voice Coach", "₹499 + ₹99/mo", "Loved-one's voice cloned", "Parents, partners"),
+        ("NRT-as-a-service", "₹1,499/mo", "Telehealth + gum/lozenge delivery", "Heavy smokers"),
+        ("Crave Band", "₹2,999 + ₹99/mo", "Wearable + HRV craving detection", "Serious / tech-forward"),
+    ]
+    st.dataframe(
+        _pd.DataFrame(LADDER, columns=["tier", "price", "includes", "target user"]),
+        hide_index=True, width="stretch",
+        column_config={"includes": st.column_config.TextColumn("includes", width="large")},
+    )
+
+    st.divider()
+
+    # ---- What we explicitly DON'T build ----
+    st.markdown("### 🚫 What we explicitly DON'T build")
+    st.markdown("""
+    Based on the 87-app scan + user interviews, we cut features competitors waste resources on:
+
+    - ❌ **"You saved ₹4,200" counter** — interview literally says "they don't care"
+    - ❌ **Days smoke-free as headline metric** — too easy to break, too punishing
+    - ❌ **Generic motivational quotes** — zero dopamine value
+    - ❌ **Long article library** — no one reads in a craving moment
+    - ❌ **Hypnosis audio** — folk remedy, no evidence
+    - ❌ **Subscription-only model** — 19.5% of all bad reviews are paywall complaints
+    - ❌ **Forum / community as primary feature** — moderation hell, low value, dilutes the dopamine focus
+    """)
+
+    st.divider()
+    st.markdown(
+        "📄 **Full spec docs in the repo:** "
+        "[DOPAMINE_STRATEGY.md](https://github.com/abhiirathi/quit-smoking-research/blob/main/DOPAMINE_STRATEGY.md) · "
+        "[PREMIUM_DOPAMINE_FEATURES.md](https://github.com/abhiirathi/quit-smoking-research/blob/main/PREMIUM_DOPAMINE_FEATURES.md)"
+    )
+
+# ---------- Complaint themes ----------
+with tabs[3]:
     st.subheader("Top complaint themes (all filtered reviews)")
     if not f_themes.empty:
         top = (
@@ -313,7 +480,7 @@ with tabs[2]:
         )
 
 # ---------- Feature requests ----------
-with tabs[3]:
+with tabs[4]:
     st.subheader("Feature requests extracted from 1–2★ reviews")
     if not f_fr.empty:
         per_app = (
@@ -333,7 +500,7 @@ with tabs[3]:
         st.info("No feature requests matched the current filters.")
 
 # ---------- Monetization ----------
-with tabs[4]:
+with tabs[5]:
     st.subheader("Monetization across competitor apps")
     if not monetization.empty:
         mon = monetization.copy()
@@ -367,7 +534,7 @@ with tabs[4]:
             st.plotly_chart(fig, width="stretch")
 
 # ---------- India lens ----------
-with tabs[5]:
+with tabs[6]:
     st.subheader("India-signal reviews")
     st.caption("Reviews mentioning India-specific words (cities, rupees, regional languages, bidi/paan/gutkha, etc.).")
     india = reviews[reviews.get("india_signal") == True].reset_index(drop=True) if not reviews.empty else pd.DataFrame()  # noqa: E712
@@ -397,7 +564,7 @@ with tabs[5]:
         st.info("No India-signal reviews yet. Run the pipeline first.")
 
 # ---------- Raw reviews ----------
-with tabs[6]:
+with tabs[7]:
     st.subheader("Raw 1–2★ reviews")
     if not f_reviews.empty:
         search = st.text_input("Search within review text")
