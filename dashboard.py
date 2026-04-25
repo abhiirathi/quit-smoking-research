@@ -440,10 +440,65 @@ with tabs[2]:
     """)
 
     st.divider()
+
+    # ---- Crave Vault ----
+    st.markdown("### 🪙 The Crave Vault — deposit instead of smoke")
+    st.markdown(
+        "Each craving → user taps to deposit the cost of a cigarette into a real savings vehicle "
+        "(digital gold, liquid MF, RD, or charity). **We never custody the money** — UPI Autopay "
+        "sweeps it directly into the user's own product. Same playbook as Jar (₹3,500 Cr AUM in 3 years), "
+        "applied to addiction. **No PPI license needed for v1.**"
+    )
+
+    v1, v2, v3 = st.columns(3)
+    v1.metric("Competitor apps offering this", "0 / 87")
+    v2.metric("Closest analog (Jar) AUM", "₹3,500 Cr")
+    v3.metric("RBI license needed", "None (phase 1)")
+
+    st.markdown("**Vault destinations** (user picks during onboarding — we facilitate, partners custody):")
+    VAULTS = [
+        ("🪙 Digital Gold", "Augmont / MMTC-PAMP / SafeGold", "~10% annual return", "Highest emotional resonance for Indian users"),
+        ("💰 Liquid Mutual Fund", "ICICI Prudential / Smallcase / Groww", "~7% annual return", "Instant redemption, tax efficient"),
+        ("🏦 Recurring Deposit", "Small finance bank partner", "~6% fixed", "Lowest perceived risk"),
+        ("💸 Charity", "Give.do / GiveIndia", "n/a — pure giving", "Spiritual / commitment angle"),
+        ("🎯 Quit Pact Escrow", "Internal", "+5% bonus", "Relapse → goes to anti-charity (premium)"),
+    ]
+    st.dataframe(
+        _pd.DataFrame(VAULTS, columns=["destination", "partner", "return", "why this option"]),
+        hide_index=True, width="stretch",
+        column_config={"why this option": st.column_config.TextColumn("why this option", width="large")},
+    )
+
+    st.markdown("**Lock mechanic — the loss-aversion moat:**")
+    LOCKS = [
+        ("Flex (no lock)", "0%", "Anytime, free withdrawal"),
+        ("30-day commit", "+1% bonus from us", "Penalty if early: ₹50 or 5%"),
+        ("90-day commit", "+3% bonus", "Locked till date"),
+        ("Quit Pact mode", "+5% bonus", "Relapse → vault goes to charity"),
+    ]
+    st.dataframe(
+        _pd.DataFrame(LOCKS, columns=["lock duration", "bonus", "withdrawal rules"]),
+        hide_index=True, width="stretch",
+    )
+
+    st.markdown("**Revenue at 100k depositors (₹500/mo avg sweep):**")
+    rcol1, rcol2, rcol3 = st.columns(3)
+    rcol1.metric("Monthly inflow", "₹5 Cr", help="Money flowing through to partners")
+    rcol2.metric("Annual AUM accrued", "~₹60 Cr")
+    rcol3.metric("Trail commission /yr", "₹30–60L", help="MF distribution + gold spread")
+
+    st.info(
+        "💡 **Why this is the gravitational center.** Every other feature feeds the vault: CRAVE → deposit, "
+        "Daily Stack completion → bonus deposit, Focus Arena winnings → auto-deposit option, Quit Pact → vault escrow. "
+        "The vault makes every other feature stickier."
+    )
+
+    st.divider()
     st.markdown(
         "📄 **Full spec docs in the repo:** "
         "[DOPAMINE_STRATEGY.md](https://github.com/abhiirathi/quit-smoking-research/blob/main/DOPAMINE_STRATEGY.md) · "
-        "[PREMIUM_DOPAMINE_FEATURES.md](https://github.com/abhiirathi/quit-smoking-research/blob/main/PREMIUM_DOPAMINE_FEATURES.md)"
+        "[PREMIUM_DOPAMINE_FEATURES.md](https://github.com/abhiirathi/quit-smoking-research/blob/main/PREMIUM_DOPAMINE_FEATURES.md) · "
+        "[CRAVE_VAULT.md](https://github.com/abhiirathi/quit-smoking-research/blob/main/CRAVE_VAULT.md)"
     )
 
 # ---------- Complaint themes ----------
